@@ -15,9 +15,9 @@
     }
   },
   {
-    "destKey": "client_user_agent",
-    "sourceKeys": ["context.user_agent"],
-    "required": true
+    "destKey": "event_source_url",
+    "sourceKeys": ["context.event_source_url"],
+    "required": false
   },
   {
     "destKey": "em",
@@ -125,7 +125,7 @@
   },
   {
     "destKey": "client_user_agent",
-    "sourceKeys": "context.userAgent",
+    "sourceKeys": ["context.userAgent", "context.user_agent", "context.client_user_agent"],
     "required": false
   },
   {
