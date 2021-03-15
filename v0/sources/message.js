@@ -1,6 +1,8 @@
 const set = require("set-value");
 const get = require("get-value");
 
+const { getValueFromMessage } = require("../util");
+
 const context = integration => {
   return {
     library: {
@@ -37,16 +39,45 @@ class Message {
   setProperties(event, mapping) {
     Object.keys(mapping).forEach(key => {
       const setVal = get(event, key);
-      const existingVal = get(this, mapping[key]);
-      // do not set if val setVal nil
-      // give higher pref to first key in mapping.json in case of same value
-      if (
-        setVal !== null &&
-        setVal !== undefined &&
-        (existingVal === null || existingVal === undefined)
-      ) {
-        set(this, mapping[key], setVal);
+      let destKeys = mapping[key];
+      if (!Array.isArray(destKeys)) {
+        destKeys = [destKeys];
       }
+      destKeys.forEach(destKey => {
+        const existingVal = get(this, destKey);
+        // do not set if val setVal nil
+        // give higher pref to first key in mapping.json in case of same value
+        if (
+          setVal !== null &&
+          setVal !== undefined &&
+          (existingVal === null || existingVal === undefined)
+        ) {
+          set(this, destKey, setVal);
+        }
+      });
+    });
+  }
+
+  setPropertiesV2(event, mappingJson) {
+    mappingJson.forEach(mapping => {
+      const { sourceKeys } = mapping;
+      let { destKeys } = mapping;
+      const setVal = getValueFromMessage(event, sourceKeys);
+      if (!Array.isArray(destKeys)) {
+        destKeys = [destKeys];
+      }
+      destKeys.forEach(destKey => {
+        const existingVal = get(this, destKey);
+        // do not set if val setVal nil
+        // give higher pref to first key in mapping.json in case of same value
+        if (
+          setVal !== null &&
+          setVal !== undefined &&
+          (existingVal === null || existingVal === undefined)
+        ) {
+          set(this, destKey, setVal);
+        }
+      });
     });
   }
 }

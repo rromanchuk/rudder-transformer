@@ -61,11 +61,31 @@ describe("event types", () => {
         expect(received).toMatchObject(output("page", integrations[index]));
       });
     });
+    it("should take name from properties if top-level name is missing", () => {
+      let i = input("page");
+      i.message.properties.name = i.message.name;
+      delete i.message.name;
+      console.log(i.message.properties.name);
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        expect(received).toMatchObject(output("page", integrations[index]));
+      });
+    });
   });
 
   describe("screen", () => {
     it("should generate one event for every screen call", () => {
       const i = input("screen");
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        expect(received).toMatchObject(output("screen", integrations[index]));
+      });
+    });
+    it("should take name from properties if top-level name is missing", () => {
+      let i = input("screen");
+      i.message.properties.name = i.message.name;
+      delete i.message.name;
+      console.log(i.message.properties.name);
       transformers.forEach((transformer, index) => {
         const received = transformer.process(i);
         expect(received).toMatchObject(output("screen", integrations[index]));
@@ -376,6 +396,43 @@ describe("remove rudder property if rudder property is null", () => {
     });
   });
 });
+describe("remove any property if event is object ", () => {
+  it("should remove any property if event is object", () => {
+    eventTypes.forEach(evType => {
+      let i = input(evType);
+      i.message.channel = {};
+      i.message.event = {};
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        expect(received[0].metadata.columns).not.toHaveProperty(
+          integrationCasedString(integrations[index], "channel")
+        );
+        expect(received[0].data).not.toHaveProperty(
+          integrationCasedString(integrations[index], "channel")
+        );
+      });
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        expect(received[0].metadata.columns).not.toHaveProperty(
+          integrationCasedString(integrations[index], "event_text")
+        );
+        expect(received[0].data).not.toHaveProperty(
+          integrationCasedString(integrations[index], "event_text")
+        );
+      });
+      i.message.channel = { channel: "android" };
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        expect(received[0].metadata.columns).not.toHaveProperty(
+          integrationCasedString(integrations[index], "channel")
+        );
+        expect(received[0].data).not.toHaveProperty(
+          integrationCasedString(integrations[index], "channel")
+        );
+      });
+    });
+  });
+});
 
 describe("store full rudder event", () => {
   it("should store if configured in dest settings", () => {
@@ -401,6 +458,84 @@ describe("store full rudder event", () => {
           expect(received[1].data).not.toHaveProperty(columnName);
         }
       });
+    });
+  });
+});
+
+describe("rudder reserved columns", () => {
+  it("should not accept rudder reserved column names from user in properties, traits etc", () => {
+    eventTypes.forEach(evType => {
+      let i = input(evType);
+
+      const delProps = [
+        "message.channel",
+        "message.timestamp",
+        "message.originalTimestamp"
+      ];
+      const setProps = [
+        "message.properties.channel",
+        "message.traits.channel",
+        "message.properties.timestamp",
+        "message.traits.timestamp",
+        "message.properties.originalTimestamp",
+        "message.traits.originalTimestamp"
+      ];
+
+      const checkProps = ["channel", "timestamp", "original_timestamp"];
+
+      delProps.forEach(prop => _.unset(i, prop));
+      setProps.forEach(prop => _.set(i, prop, "random value"));
+
+      transformers.forEach((transformer, index) => {
+        const received = transformer.process(i);
+        checkProps.forEach(k => {
+          k = integrationCasedString(integrations[index], k);
+          expect(received[0].metadata.columns).not.toHaveProperty(k);
+          expect(received[0].data).not.toHaveProperty(k);
+          if (received[1]) {
+            expect(received[1].metadata.columns).not.toHaveProperty(k);
+            expect(received[1].data).not.toHaveProperty(k);
+          }
+        });
+      });
+    });
+  });
+});
+
+describe("id column datatype for users table", () => {
+  it("should set id column datatype for users as one received and not always string", () => {
+    let i = input("identify");
+    i.message.userId = 100; //integer
+
+    transformers.forEach((transformer, index) => {
+      const received = transformer.process(i);
+      expect(
+        received[0].metadata.columns[
+          integrationCasedString(integrations[index], "user_id")
+        ]
+      ).toEqual("int");
+      expect(
+        received[1].metadata.columns[
+          integrationCasedString(integrations[index], "id")
+        ]
+      ).toEqual("int");
+    });
+
+    i = input("identify");
+    i.message.userId = 1.1; //float
+
+    transformers.forEach((transformer, index) => {
+      const received = transformer.process(i);
+      expect(
+        received[0].metadata.columns[
+          integrationCasedString(integrations[index], "user_id")
+        ]
+      ).toEqual("float");
+      expect(
+        received[1].metadata.columns[
+          integrationCasedString(integrations[index], "id")
+        ]
+      ).toEqual("float");
     });
   });
 });

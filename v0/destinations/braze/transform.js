@@ -1,5 +1,4 @@
 const get = require("get-value");
-const _ = require("lodash");
 
 const { EventType } = require("../../../constants");
 const {
@@ -19,16 +18,22 @@ const {
 } = require("./config");
 
 function formatGender(gender) {
-  if (!gender) return;
-  if (typeof gender !== "string") return;
+  // few possible cases of woman
+  if (["woman", "female", "w", "f"].indexOf(gender.toLowerCase()) > -1) {
+    return "F";
+  }
 
-  const femaleGenders = ["woman", "female", "w", "f"];
-  const maleGenders = ["man", "male", "m"];
-  const otherGenders = ["other", "o"];
+  // few possible cases of man
+  if (["man", "male", "m"].indexOf(gender.toLowerCase()) > -1) {
+    return "M";
+  }
 
-  if (femaleGenders.indexOf(gender.toLowerCase()) > -1) return "F";
-  if (maleGenders.indexOf(gender.toLowerCase()) > -1) return "M";
-  if (otherGenders.indexOf(gender.toLowerCase()) > -1) return "O";
+  // few possible cases of other
+  if (["other", "o"].indexOf(gender.toLowerCase()) > -1) {
+    return "O";
+  }
+
+  return null;
 }
 
 function buildResponse(message, destination, properties, endpoint) {
@@ -83,76 +88,47 @@ function getIdentifyPayload(message) {
   return { aliases_to_identify: [payload] };
 }
 
+// Ref: https://www.braze.com/docs/api/objects_filters/user_attributes_object/
 function getUserAttributesObject(message, mappingJson) {
+  // blank output object
   const data = {};
-  const destKeys = Object.keys(mappingJson);
-  destKeys.forEach(destKey => {
-    const sourceKeys = mappingJson[destKey];
+  // get traits from message
+  const traits = getFieldValueFromMessage(message, "traits");
 
-    let value;
-    for (let index = 0; index < sourceKeys.length; index += 1) {
-      value = get(message, sourceKeys[index]);
-
-      if (value) {
-        break;
-      }
-    }
-
+  // iterate over the destKeys and set the value if present
+  Object.keys(mappingJson).forEach(destKey => {
+    let value = get(traits, mappingJson[destKey]);
     if (value) {
+      // handle gender special case
       if (destKey === "gender") {
-        data[destKey] = formatGender(value);
-      } else {
-        data[destKey] = value;
+        value = formatGender(value);
       }
+      data[destKey] = value;
     }
   });
 
-  // const sourceKeys = Object.keys(mappingJson);
-  // sourceKeys.forEach(sourceKey => {
-  //   const value = get(message, sourceKey);
-  //   if (value) {
-  //     if (mappingJson[sourceKey] === "gender") {
-  //       data[mappingJson[sourceKey]] = formatGender(value);
-  //     } else {
-  //       data[mappingJson[sourceKey]] = value;
-  //     }
-  //   }
-  // });
-
-  const reserved = [
-    "avatar",
+  // reserved keys : already mapped through mappingJson
+  const reservedKeys = [
     "address",
     "birthday",
     "email",
-    "id",
-    "firstname",
+    "firstName",
     "gender",
-    "lastname",
-    "phone",
-    "facebook",
-    "twitter",
-    "first_name",
-    "last_name",
-    "dob",
-    "external_id",
-    "country",
-    "home_city",
-    "bio",
-    "gender",
-    "phone",
-    "email_subscribe",
-    "push_subscribe"
+    "avatar",
+    "lastName",
+    "phone"
   ];
 
-  const traits = message.traits || (message.context && message.context.traits);
-
   if (traits) {
-    reserved.forEach(element => {
-      delete traits[element];
-    });
-
-    Object.keys(traits).forEach(key => {
-      data[key] = traits[key];
+    // iterate over rest of the traits properties
+    Object.keys(traits).forEach(traitKey => {
+      // if traitKey is not reserved add the value to final output
+      if (reservedKeys.indexOf(traitKey) === -1) {
+        const value = get(traits, traitKey);
+        if (value) {
+          data[traitKey] = value;
+        }
+      }
     });
   }
 
@@ -170,13 +146,16 @@ function processIdentify(message, destination) {
 
 function processTrackWithUserAttributes(message, destination, mappingJson) {
   let payload = getUserAttributesObject(message, mappingJson);
-  payload = setExternalIdOrAliasObject(payload, message);
-  return buildResponse(
-    message,
-    destination,
-    { attributes: [payload] },
-    getTrackEndPoint(destination.Config.endPoint)
-  );
+  if (payload && Object.keys(payload).length > 0) {
+    payload = setExternalIdOrAliasObject(payload, message);
+    return buildResponse(
+      message,
+      destination,
+      { attributes: [payload] },
+      getTrackEndPoint(destination.Config.endPoint)
+    );
+  }
+  return null;
 }
 
 function handleReservedProperties(props) {
@@ -220,12 +199,6 @@ function addMandatoryPurchaseProperties(
     };
   }
   return null;
-  // payload.price = price;
-  // payload.product_id = productId;
-  // payload.currency = currencyCode;
-  // payload.quantity = quantity;
-  // payload.time = timestamp;
-  // return payload;
 }
 
 function getPurchaseObjs(message) {
@@ -268,9 +241,15 @@ function processTrackEvent(messageType, message, destination, mappingJson) {
     message.properties = {};
   }
   let { properties } = message;
+  const requestJson = {
+    partner: BRAZE_PARTNER_NAME
+  };
 
   let attributePayload = getUserAttributesObject(message, mappingJson);
-  attributePayload = setExternalIdOrAliasObject(attributePayload, message);
+  if (attributePayload && Object.keys(attributePayload).length > 0) {
+    attributePayload = setExternalIdOrAliasObject(attributePayload, message);
+    requestJson.attributes = [attributePayload];
+  }
 
   if (
     messageType === EventType.TRACK &&
@@ -309,12 +288,35 @@ function processTrackEvent(messageType, message, destination, mappingJson) {
   payload.properties = properties;
 
   payload = setExternalIdOrAliasObject(payload, message);
+  if (payload) {
+    requestJson.events = [payload];
+  }
+  return buildResponse(
+    message,
+    destination,
+    requestJson,
+    getTrackEndPoint(destination.Config.endPoint)
+  );
+}
+
+// For group call we will add a user attribute with the groupId attribute
+// with the value as true
+//
+// Ex: If the groupId is 1234, we'll add a attribute to the user object with the
+// key `ab_rudder_group_1234` with the value `true`
+function processGroup(message, destination) {
+  const groupAttribute = {};
+  const groupId = getFieldValueFromMessage(message, "groupId");
+  if (!groupId) {
+    throw new Error("Invalid groupId");
+  }
+  groupAttribute[`ab_rudder_group_${groupId}`] = true;
+  setExternalId(groupAttribute, message);
   return buildResponse(
     message,
     destination,
     {
-      attributes: [attributePayload],
-      events: [payload],
+      attributes: [groupAttribute],
       partner: BRAZE_PARTNER_NAME
     },
     getTrackEndPoint(destination.Config.endPoint)
@@ -323,6 +325,7 @@ function processTrackEvent(messageType, message, destination, mappingJson) {
 
 function process(event) {
   const respList = [];
+  let response;
   const { message, destination } = event;
   const messageType = message.type.toLowerCase();
 
@@ -350,7 +353,19 @@ function process(event) {
       respList.push(response);
       break;
     case EventType.PAGE:
-      message.event = message.name;
+      message.event =
+        message.name || get(message, "properties.name") || "Page Viewed";
+      response = processTrackEvent(
+        messageType,
+        message,
+        destination,
+        mappingConfig[category.name]
+      );
+      respList.push(response);
+      break;
+    case EventType.SCREEN:
+      message.event =
+        message.name || get(message, "properties.name") || "Screen Viewed";
       response = processTrackEvent(
         messageType,
         message,
@@ -361,14 +376,23 @@ function process(event) {
       break;
     case EventType.IDENTIFY:
       category = ConfigCategory.IDENTIFY;
-      response = processIdentify(message, destination);
-      respList.push(response);
+      if (message.anonymousId) {
+        response = processIdentify(message, destination);
+        respList.push(response);
+      }
 
       response = processTrackWithUserAttributes(
         message,
         destination,
         mappingConfig[category.name]
       );
+
+      if (response) {
+        respList.push(response);
+      }
+      break;
+    case EventType.GROUP:
+      response = processGroup(message, destination);
       respList.push(response);
       break;
     default:
@@ -377,6 +401,20 @@ function process(event) {
 
   return respList;
 }
+
+/*
+ *
+  input: [
+   { "message": {"id": "m1"}, "metadata": {"job_id": 1}, "destination": {"ID": "a", "url": "a"} },
+   { "message": {"id": "m2"}, "metadata": {"job_id": 2}, "destination": {"ID": "a", "url": "a"} },
+   { "message": {"id": "m3"}, "metadata": {"job_id": 3}, "destination": {"ID": "a", "url": "a"} },
+   { "message": {"id": "m4"}, "metadata": {"job_id": 4}, "destination": {"ID": "a", "url": "a"} }
+  ]
+  output: [
+    { batchedRequest: {}, jobs: [1, 3]},
+    { batchedRequest: {}, jobs: [2, 4]},
+  ]
+*/
 
 function formatBatchResponse(batchPayload, metadataList, destination) {
   const response = defaultBatchRequestConfig();
@@ -424,7 +462,6 @@ function batch(destEvents) {
       const { events, attributes, purchases } = jsonBody;
 
       // if total count = 75 form a new batch
-
       const maxCount = Math.max(
         attributesBatch.length + (attributes ? attributes.length : 0),
         eventsBatch.length + (events ? events.length : 0),
@@ -445,12 +482,19 @@ function batch(destEvents) {
           const batchResponse = defaultRequestConfig();
           batchResponse.headers = message.headers;
           batchResponse.endpoint = trackEndpoint;
-          batchResponse.body.JSON = {
-            attributes: attributesBatch,
-            events: eventsBatch,
-            purchases: purchasesBatch,
+          const responseBodyJson = {
             partner: BRAZE_PARTNER_NAME
           };
+          if (attributesBatch.length > 0) {
+            responseBodyJson.attributes = attributesBatch;
+          }
+          if (eventsBatch.length > 0) {
+            responseBodyJson.events = eventsBatch;
+          }
+          if (purchasesBatch.length > 0) {
+            responseBodyJson.purchases = purchasesBatch;
+          }
+          batchResponse.body.JSON = responseBodyJson;
           // modify the endpoint to track endpoint
           batchResponse.endpoint = trackEndpoint;
           respList.push(
@@ -497,12 +541,19 @@ function batch(destEvents) {
         const batchResponse = defaultRequestConfig();
         batchResponse.headers = message.headers;
         batchResponse.endpoint = trackEndpoint;
-        batchResponse.body.JSON = {
-          attributes: attributesBatch,
-          events: eventsBatch,
-          purchases: purchasesBatch,
+        const responseBodyJson = {
           partner: BRAZE_PARTNER_NAME
         };
+        if (attributesBatch.length > 0) {
+          responseBodyJson.attributes = attributesBatch;
+        }
+        if (eventsBatch.length > 0) {
+          responseBodyJson.events = eventsBatch;
+        }
+        if (purchasesBatch.length > 0) {
+          responseBodyJson.purchases = purchasesBatch;
+        }
+        batchResponse.body.JSON = responseBodyJson;
         // modify the endpoint as message object will have identify endpoint
         batchResponse.endpoint = trackEndpoint;
         respList.push(
@@ -523,7 +574,7 @@ function batch(destEvents) {
   }
 
   const ev = destEvents[index - 1];
-  const { message, metadata, destination } = ev;
+  const { message, destination } = ev;
   if (
     attributesBatch.length > 0 ||
     eventsBatch.length > 0 ||
@@ -532,12 +583,19 @@ function batch(destEvents) {
     const batchResponse = defaultRequestConfig();
     batchResponse.headers = message.headers;
     batchResponse.endpoint = trackEndpoint;
-    batchResponse.body.JSON = {
-      attributes: attributesBatch,
-      events: eventsBatch,
-      purchases: purchasesBatch,
+    const responseBodyJson = {
       partner: BRAZE_PARTNER_NAME
     };
+    if (attributesBatch.length > 0) {
+      responseBodyJson.attributes = attributesBatch;
+    }
+    if (eventsBatch.length > 0) {
+      responseBodyJson.events = eventsBatch;
+    }
+    if (purchasesBatch.length > 0) {
+      responseBodyJson.purchases = purchasesBatch;
+    }
+    batchResponse.body.JSON = responseBodyJson;
     // modify the endpoint to track endpoint
     batchResponse.endpoint = trackEndpoint;
     respList.push(
@@ -547,7 +605,6 @@ function batch(destEvents) {
 
   return respList;
 }
-
 module.exports = {
   process,
   batch

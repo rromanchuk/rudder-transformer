@@ -5,6 +5,7 @@ const _ = require("lodash");
 const { lstatSync, readdirSync } = require("fs");
 const logger = require("./logger");
 const stats = require("./util/stats");
+require("dotenv").config();
 
 const versions = ["v0"];
 const API_VERSION = "1";
@@ -63,22 +64,24 @@ async function handleDest(ctx, version, destination) {
         const parsedEvent = event;
         parsedEvent.request = { query: reqParams };
         let respEvents = await destHandler.process(parsedEvent);
-        if (!Array.isArray(respEvents)) {
-          respEvents = [respEvents];
+        if (respEvents) {
+          if (!Array.isArray(respEvents)) {
+            respEvents = [respEvents];
+          }
+          respList.push(
+            ...respEvents.map(ev => {
+              let { userId } = ev;
+              if (ev.statusCode !== 400 && userId) {
+                userId = `${userId}`;
+              }
+              return {
+                output: { ...ev, userId },
+                metadata: event.metadata,
+                statusCode: 200
+              };
+            })
+          );
         }
-        respList.push(
-          ...respEvents.map(ev => {
-            let { userId } = ev;
-            if (ev.statusCode !== 400 && userId) {
-              userId = `${userId}`;
-            }
-            return {
-              output: { ...ev, userId },
-              metadata: event.metadata,
-              statusCode: 200
-            };
-          })
-        );
       } catch (error) {
         logger.error(error);
 
@@ -98,6 +101,25 @@ async function handleDest(ctx, version, destination) {
   });
   ctx.body = respList;
   ctx.set("apiVersion", API_VERSION);
+}
+
+async function routerHandleDest(ctx) {
+  const { destType, input } = ctx.request.body;
+  const routerDestHandler = getDestHandler("v0", destType);
+  if (!routerDestHandler || !routerDestHandler.processRouterDest) {
+    ctx.status = 404;
+    ctx.body = `${destType} doesn't support router transform`;
+    return;
+  }
+  const respEvents = [];
+  const allDestEvents = _.groupBy(input, event => event.destination.ID);
+  await Promise.all(
+    Object.entries(allDestEvents).map(async ([destID, desInput]) => {
+      const listOutput = await routerDestHandler.processRouterDest(desInput);
+      respEvents.push(...listOutput);
+    })
+  );
+  ctx.body = { output: respEvents };
 }
 
 if (startDestTransformer) {
@@ -123,6 +145,9 @@ if (startDestTransformer) {
           version
         });
         stats.increment("dest_transform_requests", 1, { destination, version });
+      });
+      router.post("/routerTransform", async ctx => {
+        await routerHandleDest(ctx);
       });
     });
   });
@@ -153,6 +178,12 @@ if (startDestTransformer) {
       );
 
       const transformedEvents = [];
+      let librariesVersionIDs = [];
+      if (events[0].libraries) {
+        librariesVersionIDs = events[0].libraries.map(
+          library => library.VersionID
+        );
+      }
       await Promise.all(
         Object.entries(groupedEvents).map(async ([dest, destEvents]) => {
           logger.debug(`dest: ${dest}`);
@@ -162,7 +193,6 @@ if (startDestTransformer) {
             destEvents[0].destination.Transformations &&
             destEvents[0].destination.Transformations[0] &&
             destEvents[0].destination.Transformations[0].VersionID;
-
           const messageIds = destEvents.map(
             ev => ev.metadata && ev.metadata.messageId
           );
@@ -189,14 +219,23 @@ if (startDestTransformer) {
               );
               destTransformedEvents = await userTransformHandler()(
                 destEvents,
-                transformationVersionId
+                transformationVersionId,
+                librariesVersionIDs
               );
-
               transformedEvents.push(
                 ...destTransformedEvents.map(ev => {
+                  if (ev.error) {
+                    return {
+                      statusCode: 400,
+                      error: ev.error,
+                      metadata: ev.metadata
+                    };
+                  }
                   return {
-                    output: ev,
-                    metadata: commonMetadata,
+                    output: ev.transformedEvent,
+                    metadata: _.isEmpty(ev.metadata)
+                      ? commonMetadata
+                      : ev.metadata,
                     statusCode: 200
                   };
                 })
@@ -310,6 +349,10 @@ router.get("/version", ctx => {
   ctx.body = process.env.npm_package_version || "Version Info not found";
 });
 
+router.get("/transformerBuildVersion", ctx => {
+  ctx.body = process.env.transformer_build_version || "Version Info not found";
+});
+
 router.get("/health", ctx => {
   ctx.body = "OK";
 });
@@ -330,11 +373,13 @@ router.post("/batch", ctx => {
     try {
       const destBatchedRequests = destHandler.batch(destEvents);
       response.batchedRequests.push(...destBatchedRequests);
-    } catch(error) {
-      response.errors.push(error.message || "Error occurred while processing payload.")
+    } catch (error) {
+      response.errors.push(
+        error.message || "Error occurred while processing payload."
+      );
     }
   });
-  if(response.errors.length > 0) {
+  if (response.errors.length > 0) {
     ctx.status = 500;
     ctx.body = response.errors;
     return;

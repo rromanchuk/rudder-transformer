@@ -1,3 +1,7 @@
+/* eslint-disable  consistent-return */
+/* eslint-disable  no-param-reassign */
+/* eslint-disable  array-callback-return */
+
 // ========================================================================
 // Make sure you are putting any new method in relevant section
 // INLINERS ==> Inline methods
@@ -5,27 +9,33 @@
 // TRANSFORMER UTILITIES ==> Utility methods having dependency on event/message
 // GENERIC ==> Other methods which doesn't fit in other categories
 // ========================================================================
-
 const Handlebars = require("handlebars");
+
 const fs = require("fs");
 const path = require("path");
 const _ = require("lodash");
 const set = require("set-value");
 const get = require("get-value");
 const uaParser = require("ua-parser-js");
-const moment = require("moment");
+const moment = require("moment-timezone");
+const sha256 = require("sha256");
 const logger = require("../../logger");
-
 // ========================================================================
 // INLINERS
 // ========================================================================
 
 const isDefined = x => !_.isUndefined(x);
+const isNotEmpty = x => !_.isEmpty(x);
 const isNotNull = x => x != null;
 const isDefinedAndNotNull = x => isDefined(x) && isNotNull(x);
+const isDefinedAndNotNullAndNotEmpty = x =>
+  isDefined(x) && isNotNull(x) && isNotEmpty(x);
 const removeUndefinedValues = obj => _.pickBy(obj, isDefined);
 const removeNullValues = obj => _.pickBy(obj, isNotNull);
 const removeUndefinedAndNullValues = obj => _.pickBy(obj, isDefinedAndNotNull);
+const removeUndefinedAndNullAndEmptyValues = obj =>
+  _.pickBy(obj, isDefinedAndNotNullAndNotEmpty);
+const isBlank = value => _.isEmpty(_.toString(value));
 
 // ========================================================================
 // GENERIC UTLITY
@@ -50,7 +60,7 @@ const isPrimitive = arg => {
 };
 
 const formatValue = value => {
-  if (!value || value < 0) return 0;
+  if (!value || value < 0) return null;
   return Math.round(value);
 };
 
@@ -131,6 +141,24 @@ function flattenJson(data) {
   return result;
 }
 
+// Get the offset value in Seconds for timezone
+
+const getOffsetInSec = value => {
+  const name = moment.tz.zone(value);
+  if (name) {
+    const x = moment()
+      .tz(value)
+      .format("Z");
+    const split = x.split(":");
+    const hour = Number(split[0]);
+    const min = Number(split[1]);
+    let sec = 0;
+    sec =
+      hour < 0 ? -1 * (hour * -60 * 60 + min * 60) : hour * 60 * 60 + min * 60;
+    return sec;
+  }
+  return undefined;
+};
 // Important !@!
 // format date in yyyymmdd format
 // NEED TO DEPRECATE
@@ -152,6 +180,30 @@ const formatTimeStamp = (dateStr, format) => {
   switch (format) {
     default:
       return date.getTime();
+  }
+};
+
+//
+
+const hashToSha256 = value => {
+  return sha256(value);
+};
+// Check what type of gender and convert to f or m
+
+const getFbGenderVal = gender => {
+  if (
+    gender.toUpperCase() === "FEMALE" ||
+    gender.toUpperCase() === "F" ||
+    gender.toUpperCase() === "WOMAN"
+  ) {
+    return hashToSha256("f");
+  }
+  if (
+    gender.toUpperCase() === "MALE" ||
+    gender.toUpperCase() === "M" ||
+    gender.toUpperCase() === "MAN"
+  ) {
+    return hashToSha256("m");
   }
 };
 
@@ -220,6 +272,29 @@ const defaultBatchRequestConfig = () => {
   };
 };
 
+// Router transformer
+// Success responses
+const getSuccessRespEvents = (
+  message,
+  metadata,
+  destination,
+  batched = false
+) => {
+  return {
+    batchedRequest: message,
+    metadata,
+    batched,
+    statusCode: 200,
+    destination
+  };
+};
+
+// Router transformer
+// Error responses
+const getErrorRespEvents = (metadata, statusCode, error, batched = false) => {
+  return { metadata, batched, statusCode, error };
+};
+
 // ========================================================================
 // Error Message UTILITIES
 // ========================================================================
@@ -270,9 +345,6 @@ const updatePayload = (currentKey, eventMappingArr, value, payload) => {
   return payload;
 };
 
-// Important !@!
-// - get value from a list of sourceKeys in precedence order
-// - get value from a string key
 const getValueFromMessage = (message, sourceKey) => {
   if (Array.isArray(sourceKey) && sourceKey.length > 0) {
     if (sourceKey.length === 1) {
@@ -301,6 +373,20 @@ const getValueFromMessage = (message, sourceKey) => {
   return null;
 };
 
+// get a field value from message.
+// if sourceFromGenericMap is true get its value from GenericFieldMapping.json and use it as sourceKey
+// else use sourceKey from `data/message.json` for actual field precedence
+// Example usage: getFieldValueFromMessage(message, "userId",true)
+//                This will return the first nonnull value from
+//                ["userId", "traits.userId", "traits.id", "context.traits.userId", "context.traits.id", "anonymousId"]
+const getFieldValueFromMessage = (message, sourceKey) => {
+  const sourceKeyMap = MESSAGE_MAPPING[sourceKey];
+  if (sourceKeyMap) {
+    return getValueFromMessage(message, sourceKeyMap);
+  }
+  return null;
+};
+
 // format the value as per the metadata values
 // Expected metadata keys are: (according to precedence)
 // - - type, typeFormat: expected data type and its format
@@ -308,11 +394,21 @@ const getValueFromMessage = (message, sourceKey) => {
 // - - excludes : fields you want to strip of from the final value (works only for object)
 // - - - - ex: "anonymousId", "userId" from traits
 const handleMetadataForValue = (value, metadata) => {
+  if (!metadata) {
+    return value;
+  }
+
+  // get infor from metadata
+  const { type, typeFormat, template, defaultValue, excludes } = metadata;
+
+  // if value is null and defaultValue is supplied - use that
+  if (!value) {
+    return defaultValue || value;
+  }
+  // we've got a correct value. start processing
   let formattedVal = value;
-  const { type, typeFormat, template, excludes } = metadata;
 
   // handle type and format
-  // skipping check for typeFormat to support default for each type
   if (type) {
     switch (type) {
       case "timestamp":
@@ -344,7 +440,7 @@ const handleMetadataForValue = (value, metadata) => {
           formattedVal = formattedVal.substring(1);
         }
         formattedVal = Number.parseFloat(Number(formattedVal || 0).toFixed(2));
-        if (isNaN(formattedVal)) {
+        if (Number.isNaN(formattedVal)) {
           throw new Error("Revenue is not in the correct format");
         }
         break;
@@ -353,7 +449,20 @@ const handleMetadataForValue = (value, metadata) => {
         break;
       case "toNumber":
         formattedVal = Number(formattedVal);
-
+        break;
+      case "hashToSha256":
+        formattedVal = hashToSha256(String(formattedVal));
+        break;
+      case "getFbGenderVal":
+        formattedVal = getFbGenderVal(formattedVal);
+        break;
+      case "getOffsetInSec":
+        formattedVal = getOffsetInSec(formattedVal);
+        break;
+      case "domainUrl":
+        formattedVal = formattedVal
+          .replace("https://", "")
+          .replace("http://", "");
         break;
       default:
         break;
@@ -363,7 +472,7 @@ const handleMetadataForValue = (value, metadata) => {
   // handle template
   if (template) {
     const hTemplate = Handlebars.compile(template.trim());
-    formattedVal = hTemplate({ value });
+    formattedVal = hTemplate({ value }).trim();
   }
 
   // handle excludes
@@ -379,7 +488,6 @@ const handleMetadataForValue = (value, metadata) => {
       );
     }
   }
-
   return formattedVal;
 };
 
@@ -426,16 +534,25 @@ const constructPayload = (message, mappingJson) => {
     //   ...
     // ];
     mappingJson.forEach(mapping => {
-      const { sourceKeys, destKey, required, metadata } = mapping;
-      // get the value from event
-      const value = getValueFromMessage(message, sourceKeys);
+      const {
+        sourceKeys,
+        destKey,
+        required,
+        metadata,
+        sourceFromGenericMap
+      } = mapping;
+      // get the value from event, pass sourceFromGenericMap in the mapping to force this to take the
+      // sourcekeys from GenericFieldMapping, else take the sourceKeys from specific destination mapping sourceKeys
+      const value = handleMetadataForValue(
+        sourceFromGenericMap
+          ? getFieldValueFromMessage(message, sourceKeys)
+          : getValueFromMessage(message, sourceKeys),
+        metadata
+      );
+
       if (value) {
         // set the value only if correct
-        if (metadata) {
-          set(payload, destKey, handleMetadataForValue(value, metadata));
-        } else {
-          set(payload, destKey, value);
-        }
+        set(payload, destKey, value);
       } else if (required) {
         // throw error if reqired value is missing
         throw new Error(
@@ -448,19 +565,6 @@ const constructPayload = (message, mappingJson) => {
   }
 
   // invalid mappingJson
-  return null;
-};
-
-// get a field value from message.
-// check `data/message.json` for actual field precedence
-// Example usage: getFieldValueFromMessage(message, "userId")
-//                This will return the first nonnull value from
-//                ["userId", "context.traits.userId", "context.traits.id", "anonymousId"]
-const getFieldValueFromMessage = (message, field) => {
-  const sourceKey = MESSAGE_MAPPING[field];
-  if (sourceKey) {
-    return getValueFromMessage(message, sourceKey);
-  }
   return null;
 };
 
@@ -564,6 +668,115 @@ function getTimeDifference(timestamp) {
   return { days, months, years, hours, minutes, seconds };
 }
 
+// Extract firstName and lastName from traits
+// split the name with <space> and consider the 0th position as first name
+// and the last item (only if name is not a single word) as lastName
+function getFirstAndLastName(traits, defaultLastName = "n/a") {
+  let nameParts;
+  if (traits.name) {
+    nameParts = traits.name.split(" ");
+  }
+  return {
+    firstName:
+      traits.firstName ||
+      (nameParts && nameParts.length > 0 ? nameParts[0] : ""),
+    lastName:
+      traits.lastName ||
+      (nameParts && nameParts.length > 1
+        ? nameParts[nameParts.length - 1]
+        : defaultLastName)
+  };
+}
+/**
+ * Extract fileds from message with exclusions
+ * Pass the keys of message for extraction and
+ * exclusion fields to exlude and the payload to map into
+ *
+ * Example:
+ * extractCustomFields(
+ *   message,
+ *   payload,
+ *   ["traits", "context.traits", "properties"],
+ *   "email",
+ *   [
+ *     "firstName",
+ *     "lastName",
+ *     "phone",
+ *     "title",
+ *     "organization",
+ *     "city",
+ *     "region",
+ *     "country",
+ *     "zip",
+ *     "image",
+ *     "timezone"
+ *   ]
+ * )
+ * -------------------------------------------
+ * The above call will map the fields other than the
+ * exlusion list from the given keys to the destination payload
+ *
+ */
+function extractCustomFields(message, destination, keys, exclusionFields) {
+  keys.map(key => {
+    const messageContext = get(message, key);
+    if (messageContext) {
+      const values = [];
+      Object.keys(messageContext).map(value => {
+        if (!exclusionFields.includes(value)) values.push(value);
+      });
+      values.map(val => {
+        if (!(typeof messageContext[val] === "undefined")) {
+          set(destination, val, get(messageContext, val));
+        }
+      });
+    }
+  });
+  return destination;
+}
+
+// Deleting nested properties from objects
+function deleteObjectProperty(object, pathToObject) {
+  let i;
+  if (!object || !pathToObject) {
+    return;
+  }
+  if (typeof pathToObject === "string") {
+    pathToObject = pathToObject.split(".");
+  }
+  for (i = 0; i < pathToObject.length - 1; i += 1) {
+    object = object[pathToObject[i]];
+
+    if (typeof object === "undefined") {
+      return;
+    }
+  }
+
+  delete object[pathToObject.pop()];
+}
+
+// function convert keys in a object to title case
+
+function toTitleCase(payload) {
+  const newPayload = payload;
+  Object.keys(payload).forEach(key => {
+    const value = newPayload[key];
+    delete newPayload[key];
+    const newKey = key
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+      .replace(/([a-z])([0-9])/gi, "$1 $2")
+      .replace(/([0-9])([a-z])/gi, "$1 $2")
+      .trim()
+      .replace(/(_)/g, ` `)
+      .replace(/(^\w{1})|(\s+\w{1})/g, match => {
+        return match.toUpperCase();
+      });
+    newPayload[newKey] = value;
+  });
+  return newPayload;
+}
+
 // ========================================================================
 // EXPORTS
 // ========================================================================
@@ -577,28 +790,37 @@ module.exports = {
   defaultPostRequestConfig,
   defaultPutRequestConfig,
   defaultRequestConfig,
+  deleteObjectProperty,
+  extractCustomFields,
   flattenJson,
   formatValue,
   getBrowserInfo,
   getDateInFormat,
   getDestinationExternalID,
   getDeviceModel,
+  getErrorRespEvents,
   getFieldValueFromMessage,
+  getFirstAndLastName,
   getHashFromArray,
   getMappingConfig,
   getParsedIP,
+  getSuccessRespEvents,
   getTimeDifference,
   getValueFromMessage,
   getValuesAsArrayFromConfig,
+  isBlank,
+  isDefined,
   isEmpty,
   isObject,
   isPrimitive,
   isValidUrl,
   removeNullValues,
+  removeUndefinedAndNullAndEmptyValues,
   removeUndefinedAndNullValues,
   removeUndefinedValues,
   setValues,
   stripTrailingSlash,
+  toTitleCase,
   toUnixTimestamp,
   updatePayload
 };
