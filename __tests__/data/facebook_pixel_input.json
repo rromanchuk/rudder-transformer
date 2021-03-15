@@ -28,7 +28,8 @@
         "traits": {
           "email": "abc@gmail.com",
           "anonymousId": "c82cbdff-e5be-4009-ac78-cdeea09ab4b1"
-        }
+        },
+        "action_source": "app"
       },
       "event": "spin_result",
       "integrations": {
@@ -95,6 +96,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
         "ip": "0.0.0.0",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -174,6 +176,7 @@
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
         "ip": "0.0.0.0",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -249,6 +252,7 @@
           "version": "1.0.0"
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
+        "action_source": "website",
         "locale": "en-US",
         "ip": "0.0.0.0",
         "os": {
@@ -334,7 +338,8 @@
         "traits": {
           "email": "abc@gmail.com",
           "anonymousId": "c82cbdff-e5be-4009-ac78-cdeea09ab4b1"
-        }
+        },
+        "action_source": "app"
       },
       "event": "spin_result",
       "integrations": {
@@ -410,7 +415,8 @@
         "traits": {
           "email": "abc@gmail.com",
           "anonymousId": "c82cbdff-e5be-4009-ac78-cdeea09ab4b1"
-        }
+        },
+        "action_source": "app"
       },
       "event": "spin_result",
       "integrations": {
@@ -486,7 +492,8 @@
         "traits": {
           "email": "abc@gmail.com",
           "anonymousId": "c82cbdff-e5be-4009-ac78-cdeea09ab4b1"
-        }
+        },
+        "action_source": "app"
       },
       "event": "spin_result",
       "integrations": {
@@ -563,7 +570,8 @@
         "traits": {
           "email": "abc@gmail.com",
           "anonymousId": "c82cbdff-e5be-4009-ac78-cdeea09ab4b1"
-        }
+        },
+        "action_source": "app"
       },
       "event": "spin_result",
       "integrations": {
@@ -627,6 +635,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "ip": "0.0.0.0",
         "os": {
           "name": "",
@@ -702,6 +711,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "ip": "0.0.0.0",
         "os": {
           "name": "",
@@ -776,6 +786,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -867,6 +878,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -958,6 +970,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1063,6 +1076,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1168,6 +1182,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1252,6 +1267,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1332,6 +1348,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1430,6 +1447,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""
@@ -1523,6 +1541,7 @@
         "fbp": "fb.1.1554763741205.234567890",
         "fb_login_id": "fb_id",
         "lead_id": "lead_id",
+        "action_source": "app",
         "device": {
           "id": "df16bffa-5c3d-4fbb-9bce-3bab098129a7R",
           "manufacturer": "Xiaomi",
@@ -1604,6 +1623,7 @@
         "fbp": "fb.1.1554763741205.234567890",
         "fb_login_id": "fb_id",
         "lead_id": "lead_id",
+        "action_source": "app",
         "device": {
           "id": "df16bffa-5c3d-4fbb-9bce-3bab098129a7R",
           "manufacturer": "Xiaomi",
@@ -1690,6 +1710,7 @@
         },
         "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
         "locale": "en-US",
+        "action_source": "website",
         "os": {
           "name": "",
           "version": ""

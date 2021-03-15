@@ -12,6 +12,14 @@ const {
   isObject
 } = require("../../util");
 
+/**  format revenue according to fb standards with max two decimal places.
+ * @param revenue
+ * @return number
+ */
+
+const formatRevenue = revenue => {
+  return Number((revenue || 0).toFixed(2));
+};
 
 /**
  *
@@ -70,7 +78,7 @@ const getContentType = (message, defaultValue, categoryToContent) => {
  */
 const handleOrder = (message, categoryToContent) => {
   const { products } = message.properties;
-  const value = message.properties.revenue;
+  const value = formatRevenue(message.properties.revenue);
   const contentType = getContentType(message, "product", categoryToContent);
   const contentIds = [];
   const contents = [];
@@ -174,8 +182,8 @@ const handleProduct = (message, categoryToContent, valueFieldIdentifier) => {
   const contentCategory = message.properties.category || "";
   const currency = message.properties.currency || "USD";
   const value = useValue
-    ? message.properties.value
-    : message.properties.price;
+    ? formatRevenue(message.properties.value)
+    : formatRevenue(message.properties.price);
   const contents = [
     {
       id:
@@ -217,7 +225,6 @@ const handleProduct = (message, categoryToContent, valueFieldIdentifier) => {
           model: 'Redmi 6',
           name: 'xiaomi'
         },
-        user_agent: 'client_user_agent',
         network: { carrier: 'Banglalink' },
         os: { name: 'android', version: '8.1.0' },
         screen: { height: '100', density: 50 },
@@ -234,8 +241,7 @@ const handleProduct = (message, categoryToContent, valueFieldIdentifier) => {
           fbc: 'fb.1.1554763741205.AbCdEfGhIjKlMnOpQrStUvWxYz1234567890',
           fbp: 'fb.1.1554763741205.234567890',
           fb_login_id: 'fb_id',
-          lead_id: 'lead_id',
-          action_source: 'app'
+          lead_id: 'lead_id'
         }
       },
       message_id: 'a80f82be-9bdc-4a9f-b2a5-15621ee41df8',
@@ -283,8 +289,7 @@ const transformedPayloadData = (
     "phone",
     "state",
     "zip",
-    "birthday",
-    "client_user_agent"
+    "birthday"
   ];
   blacklistPiiProperties = blacklistPiiProperties || [];
   whitelistPiiProperties = whitelistPiiProperties || [];
@@ -465,6 +470,7 @@ const responseBuilderSimple = (message, category, destination) => {
     const response = defaultRequestConfig();
     response.endpoint = endpoint;
     response.method = defaultPostRequestConfig.requestMethod;
+    // commonData.action_source = get(message, "context.action_source");
     const jsonStringify = JSON.stringify({
       user_data: userData,
       ...commonData,
