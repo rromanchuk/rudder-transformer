@@ -289,7 +289,8 @@ const transformedPayloadData = (
     "phone",
     "state",
     "zip",
-    "birthday"
+    "birthday",
+    "client_user_agent"
   ];
   blacklistPiiProperties = blacklistPiiProperties || [];
   whitelistPiiProperties = whitelistPiiProperties || [];

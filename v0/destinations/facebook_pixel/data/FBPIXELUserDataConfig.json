@@ -15,6 +15,11 @@
     }
   },
   {
+    "destKey": "client_user_agent",
+    "sourceKeys": ["context.user_agent"],
+    "required": true
+  },
+  {
     "destKey": "em",
     "sourceKeys": ["traits.email", "context.traits.email"],
     "required": false,

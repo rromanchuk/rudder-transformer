@@ -10,7 +10,9 @@ services:
       - ENABLE_FUNCTIONS=false
 
   transformer:
+    container_name: rudder-transformer
     build:
       context: .
+    image: rromanchuk/rudder-transformer:latest
     ports:
       - "9091:9090"
