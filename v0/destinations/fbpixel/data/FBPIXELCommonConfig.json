@@ -22,5 +22,10 @@
     "destKey": "action_source",
     "sourceKeys": ["action_source", "context.action_source"],
     "required": true
+  },
+  {
+    "destKey": "event_source_url",
+    "sourceKeys": ["properties.url", "properties.event_source_url", "properties.path"],
+    "required": false
   }
 ]
