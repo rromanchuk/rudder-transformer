@@ -11,6 +11,11 @@
     "metadata": {
       "type": "secondTimestamp"
     }
+  },
+  {
+    "destKey": "action_source",
+    "sourceKeys": ["action_source", "context.action_source"],
+    "required": true
   }
 ]
 
