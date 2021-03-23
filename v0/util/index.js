@@ -568,6 +568,17 @@ const constructPayload = (message, mappingJson) => {
   return null;
 };
 
+// External ID format
+// {
+//   "context": {
+//     "externalId": [
+//       {
+//         "type": "kustomerId",
+//         "id": "12345678"
+//       }
+//     ]
+//   }
+// }
 // to get destination specific external id passed in context.
 function getDestinationExternalID(message, type) {
   let externalIdArray = null;
@@ -810,6 +821,7 @@ module.exports = {
   getValuesAsArrayFromConfig,
   isBlank,
   isDefined,
+  isDefinedAndNotNull,
   isEmpty,
   isObject,
   isPrimitive,
